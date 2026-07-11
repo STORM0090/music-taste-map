@@ -91,6 +91,8 @@ except spotipy.SpotifyException as e:
     else:
         raise
 
+# loudness is intentionally absent: the offline feature datasets used
+# to fill these columns do not provide it (see match_features.py).
 FEATURE_COLUMNS = [
     "danceability",
     "energy",
@@ -100,7 +102,6 @@ FEATURE_COLUMNS = [
     "instrumentalness",
     "speechiness",
     "liveness",
-    "loudness",
     "key",
     "mode",
     "time_signature",

@@ -57,7 +57,7 @@ void write_file(const std::string& path, const std::string& content) {
 const std::string kHeader =
     "name,artists,album,release_date,popularity,duration_ms,id,"
     "danceability,energy,valence,tempo,acousticness,instrumentalness,"
-    "speechiness,liveness,loudness,key,mode,time_signature";
+    "speechiness,liveness,key,mode,time_signature";
 
 void test_loader() {
     const std::string path = "test_tmp.csv";
@@ -68,9 +68,9 @@ void test_loader() {
                "\xEF\xBB\xBF" + kHeader + "\r\n" +
                    "\"Song, with comma\",\"Artist \"\"X\"\"\",Album,"
                    "2020-01-01,50,200000,id1,"
-                   "0.5,0.6,0.7,120,0.1,0,0.05,0.15,-6,5,1,4\r\n" +
+                   "0.5,0.6,0.7,120,0.1,0,0.05,0.15,5,1,4\r\n" +
                    "Plain Song,Artist2,Album2,2021,,180000,id2,"
-                   ",,,,,,,,,,,\r\n");
+                   ",,,,,,,,,,\r\n");
 
     std::vector<music_taste::FeatureVector> tracks =
         music_taste::load_tracks_csv(path);
@@ -82,7 +82,7 @@ void test_loader() {
     CHECK(tracks[0].has_features);
     CHECK(approx(tracks[0].features[0], 0.5));    // danceability
     CHECK(approx(tracks[0].features[3], 120.0));  // tempo
-    CHECK(approx(tracks[0].features[8], -6.0));   // loudness
+    CHECK(approx(tracks[0].features[8], 5.0));    // key
     CHECK(!tracks[1].has_features);
     CHECK(approx(tracks[1].features[0], 0.0));
 

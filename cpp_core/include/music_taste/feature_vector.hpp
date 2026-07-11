@@ -8,10 +8,12 @@ namespace music_taste {
 
 // Audio feature names, in the same order as the CSV columns produced
 // by get_playlist_features.py.
-inline constexpr std::array<const char*, 12> kFeatureNames = {
+// loudness is intentionally absent: the offline feature datasets do
+// not provide it, and it strongly correlates with energy anyway.
+inline constexpr std::array<const char*, 11> kFeatureNames = {
     "danceability", "energy",           "valence",     "tempo",
     "acousticness", "instrumentalness", "speechiness", "liveness",
-    "loudness",     "key",              "mode",        "time_signature",
+    "key",          "mode",             "time_signature",
 };
 
 inline constexpr std::size_t kFeatureCount = kFeatureNames.size();
