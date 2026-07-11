@@ -12,6 +12,11 @@ namespace music_taste {
 double euclidean_distance(const std::array<double, kFeatureCount>& a,
                           const std::array<double, kFeatureCount>& b);
 
+// Same without the square root - cheaper, and sufficient wherever
+// distances are only compared with each other (e.g. k-means).
+double squared_euclidean_distance(const std::array<double, kFeatureCount>& a,
+                                  const std::array<double, kFeatureCount>& b);
+
 // Cosine of the angle between two vectors: 1 = same direction,
 // 0 = unrelated, -1 = opposite. Returns 0 when either vector has zero
 // length (the angle is undefined there).

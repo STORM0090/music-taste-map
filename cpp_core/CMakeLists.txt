@@ -9,6 +9,7 @@ add_library(music_taste_lib STATIC
     src/csv_loader.cpp
     src/normalizer.cpp
     src/distance.cpp
+    src/kmeans.cpp
 )
 target_include_directories(music_taste_lib PUBLIC include)
 

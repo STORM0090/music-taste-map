@@ -1,15 +1,25 @@
+#include <algorithm>
+#include <cmath>
 #include <iomanip>
 #include <iostream>
 #include <string>
+#include <utility>
+#include <vector>
 
 #include "music_taste/csv_loader.hpp"
 #include "music_taste/distance.hpp"
+#include "music_taste/kmeans.hpp"
 #include "music_taste/normalizer.hpp"
 
 int main(int argc, char** argv) {
-    if (argc != 2) {
-        std::cerr << "Usage: " << argv[0] << " <path-to-tracks.csv>\n";
+    if (argc < 2 || argc > 3) {
+        std::cerr << "Usage: " << argv[0]
+                   << " <path-to-tracks.csv> [clusters]\n";
         return 1;
+    }
+    std::size_t requested_k = 5;
+    if (argc == 3) {
+        requested_k = static_cast<std::size_t>(std::stoul(argv[2]));
     }
 
     try {
@@ -88,6 +98,67 @@ int main(int argc, char** argv) {
                        << tracks[best_j].name << "  (cosine " << best << ")\n";
             std::cout << "Least similar: " << tracks[worst_i].name << "  <->  "
                        << tracks[worst_j].name << "  (cosine " << worst << ")\n";
+        }
+
+        // --- Clustering ------------------------------------------------
+        if (with_features < 2) {
+            std::cout << "\nClustering skipped: not enough tracks.\n";
+            return 0;
+        }
+        const std::size_t k = std::min(requested_k, with_features);
+
+        // Elbow data: inertia always drops as k grows; the "elbow"
+        // where it stops dropping fast is a reasonable k to pick.
+        std::cout << "\nInertia by cluster count:\n";
+        for (std::size_t trial = 2; trial <= std::min<std::size_t>(8, with_features);
+             ++trial) {
+            music_taste::KMeansResult r = music_taste::run_kmeans(tracks, trial);
+            std::cout << "  k=" << trial << "  inertia=" << r.inertia << '\n';
+        }
+
+        music_taste::KMeansResult clusters = music_taste::run_kmeans(tracks, k);
+        std::cout << "\nClusters (k=" << k << ", converged in "
+                   << clusters.iterations << " iterations):\n";
+
+        for (std::size_t c = 0; c < k; ++c) {
+            // Members of this cluster, sorted by distance to centroid.
+            std::vector<std::pair<double, std::size_t>> members;
+            for (std::size_t i = 0; i < tracks.size(); ++i) {
+                if (clusters.cluster_of[i] == static_cast<int>(c)) {
+                    members.push_back({music_taste::euclidean_distance(
+                                           tracks[i].features,
+                                           clusters.centroids[c]),
+                                       i});
+                }
+            }
+            std::sort(members.begin(), members.end());
+
+            // The two most pronounced centroid features (largest |z|)
+            // describe what makes this cluster distinct.
+            std::size_t f1 = 0, f2 = 0;
+            double a1 = -1.0, a2 = -1.0;
+            for (std::size_t f = 0; f < music_taste::kFeatureCount; ++f) {
+                const double a = std::fabs(clusters.centroids[c][f]);
+                if (a > a1) {
+                    a2 = a1;
+                    f2 = f1;
+                    a1 = a;
+                    f1 = f;
+                } else if (a > a2) {
+                    a2 = a;
+                    f2 = f;
+                }
+            }
+
+            std::cout << "\n  Cluster " << c << " - " << members.size()
+                       << " tracks, defined by " << music_taste::kFeatureNames[f1]
+                       << " " << std::showpos << clusters.centroids[c][f1]
+                       << ", " << music_taste::kFeatureNames[f2] << " "
+                       << clusters.centroids[c][f2] << std::noshowpos << '\n';
+            for (std::size_t m = 0; m < members.size() && m < 3; ++m) {
+                const auto& t = tracks[members[m].second];
+                std::cout << "    " << t.name << " -- " << t.artists << '\n';
+            }
         }
     } catch (const std::exception& e) {
         std::cerr << "Error: " << e.what() << '\n';

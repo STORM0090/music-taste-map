@@ -4,14 +4,19 @@
 
 namespace music_taste {
 
-double euclidean_distance(const std::array<double, kFeatureCount>& a,
-                          const std::array<double, kFeatureCount>& b) {
+double squared_euclidean_distance(const std::array<double, kFeatureCount>& a,
+                                  const std::array<double, kFeatureCount>& b) {
     double sum = 0.0;
     for (std::size_t i = 0; i < kFeatureCount; ++i) {
         const double diff = a[i] - b[i];
         sum += diff * diff;
     }
-    return std::sqrt(sum);
+    return sum;
+}
+
+double euclidean_distance(const std::array<double, kFeatureCount>& a,
+                          const std::array<double, kFeatureCount>& b) {
+    return std::sqrt(squared_euclidean_distance(a, b));
 }
 
 double cosine_similarity(const std::array<double, kFeatureCount>& a,

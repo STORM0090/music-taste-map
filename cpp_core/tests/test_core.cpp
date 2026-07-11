@@ -11,6 +11,7 @@
 
 #include "music_taste/csv_loader.hpp"
 #include "music_taste/distance.hpp"
+#include "music_taste/kmeans.hpp"
 #include "music_taste/normalizer.hpp"
 
 int checks_run = 0;
@@ -186,12 +187,74 @@ void test_distance() {
     // Zero vector has no direction: similarity defined as 0.
     b.fill(0.0);
     CHECK(approx(music_taste::cosine_similarity(a, b), 0.0));
+
+    // Squared distance: same 3-4-5 triangle without the square root.
+    a.fill(0.0);
+    b.fill(0.0);
+    b[0] = 3.0;
+    b[1] = 4.0;
+    CHECK(approx(music_taste::squared_euclidean_distance(a, b), 25.0));
+}
+
+music_taste::FeatureVector point_track(const std::string& id, double x,
+                                       double y) {
+    music_taste::FeatureVector t;
+    t.id = id;
+    t.name = id;
+    t.has_features = true;
+    t.features.fill(0.0);
+    t.features[0] = x;
+    t.features[1] = y;
+    return t;
+}
+
+void test_kmeans() {
+    // Two tight groups far apart, plus a featureless track in between.
+    std::vector<music_taste::FeatureVector> tracks;
+    tracks.push_back(point_track("a1", 0.0, 0.0));
+    tracks.push_back(point_track("a2", 0.1, 0.0));
+    tracks.push_back(point_track("a3", 0.0, 0.1));
+    music_taste::FeatureVector ghost;
+    ghost.id = "ghost";
+    ghost.has_features = false;
+    tracks.push_back(ghost);
+    tracks.push_back(point_track("b1", 10.0, 10.0));
+    tracks.push_back(point_track("b2", 10.1, 10.0));
+    tracks.push_back(point_track("b3", 10.0, 10.1));
+
+    music_taste::KMeansResult res = music_taste::run_kmeans(tracks, 2);
+
+    CHECK(res.cluster_of.size() == tracks.size());
+    CHECK(res.cluster_of[3] == -1);  // ghost is not clustered
+
+    // Each group ends up together, and the groups differ.
+    CHECK(res.cluster_of[0] == res.cluster_of[1]);
+    CHECK(res.cluster_of[1] == res.cluster_of[2]);
+    CHECK(res.cluster_of[4] == res.cluster_of[5]);
+    CHECK(res.cluster_of[5] == res.cluster_of[6]);
+    CHECK(res.cluster_of[0] != res.cluster_of[4]);
+
+    // Tight, well-separated groups: tiny inertia with k=2, huge with 1.
+    CHECK(res.inertia < 0.1);
+    music_taste::KMeansResult res1 = music_taste::run_kmeans(tracks, 1);
+    CHECK(res1.inertia > 100.0);
+    CHECK(res1.cluster_of[0] == 0);
+    CHECK(res1.cluster_of[6] == 0);
+
+    // Same seed - same result.
+    music_taste::KMeansResult res_again = music_taste::run_kmeans(tracks, 2);
+    CHECK(res_again.cluster_of == res.cluster_of);
+
+    // Invalid k: zero, or more clusters than tracks with features.
+    CHECK_THROWS(music_taste::run_kmeans(tracks, 0), std::runtime_error);
+    CHECK_THROWS(music_taste::run_kmeans(tracks, 7), std::runtime_error);
 }
 
 int main() {
     test_loader();
     test_normalizer();
     test_distance();
+    test_kmeans();
 
     std::cout << checks_run << " checks, " << checks_failed << " failed\n";
     return checks_failed == 0 ? 0 : 1;
