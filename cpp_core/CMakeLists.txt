@@ -8,6 +8,7 @@ set(CMAKE_EXPORT_COMPILE_COMMANDS ON)
 add_executable(music_taste_core
     src/main.cpp
     src/csv_loader.cpp
+    src/normalizer.cpp
 )
 
 target_include_directories(music_taste_core PRIVATE include)
