@@ -11,6 +11,7 @@ add_library(music_taste_lib STATIC
     src/distance.cpp
     src/kmeans.cpp
     src/pca.cpp
+    src/json_writer.cpp
 )
 target_include_directories(music_taste_lib PUBLIC include)
 

@@ -8,6 +8,7 @@
 
 #include "music_taste/csv_loader.hpp"
 #include "music_taste/distance.hpp"
+#include "music_taste/json_writer.hpp"
 #include "music_taste/kmeans.hpp"
 #include "music_taste/normalizer.hpp"
 #include "music_taste/pca.hpp"
@@ -34,14 +35,18 @@ std::pair<std::size_t, std::size_t> top_two_features(
 }
 
 int main(int argc, char** argv) {
-    if (argc < 2 || argc > 3) {
+    if (argc < 2 || argc > 4) {
         std::cerr << "Usage: " << argv[0]
-                   << " <path-to-tracks.csv> [clusters]\n";
+                   << " <path-to-tracks.csv> [clusters] [output.json]\n";
         return 1;
     }
     std::size_t requested_k = 5;
-    if (argc == 3) {
+    if (argc >= 3) {
         requested_k = static_cast<std::size_t>(std::stoul(argv[2]));
+    }
+    std::string json_path;
+    if (argc == 4) {
+        json_path = argv[3];
     }
 
     try {
@@ -196,6 +201,11 @@ int main(int argc, char** argv) {
                        << map.coords[i][0] << ", " << map.coords[i][1]
                        << ")\n";
             ++shown;
+        }
+
+        if (!json_path.empty()) {
+            music_taste::write_map_json(json_path, tracks, clusters, map);
+            std::cout << "\nStar-map data written to " << json_path << '\n';
         }
     } catch (const std::exception& e) {
         std::cerr << "Error: " << e.what() << '\n';

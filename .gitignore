@@ -14,6 +14,7 @@ venv/
 # Generated data exports and offline datasets
 playlist_features.csv
 data/
+map.json
 
 # C++ (CMake out-of-source build)
 cpp_core/build/

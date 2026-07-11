@@ -6,11 +6,13 @@
 #include <cstdio>
 #include <fstream>
 #include <iostream>
+#include <sstream>
 #include <string>
 #include <vector>
 
 #include "music_taste/csv_loader.hpp"
 #include "music_taste/distance.hpp"
+#include "music_taste/json_writer.hpp"
 #include "music_taste/kmeans.hpp"
 #include "music_taste/normalizer.hpp"
 #include "music_taste/pca.hpp"
@@ -304,12 +306,63 @@ void test_pca() {
     CHECK_THROWS(music_taste::project_to_2d(empty), std::runtime_error);
 }
 
+std::string read_file(const std::string& path) {
+    std::ifstream in(path, std::ios::binary);
+    std::ostringstream buf;
+    buf << in.rdbuf();
+    return buf.str();
+}
+
+void test_json_writer() {
+    // Same two-group geometry as the k-means test, plus a ghost and
+    // characters that require JSON escaping in the metadata.
+    std::vector<music_taste::FeatureVector> tracks;
+    tracks.push_back(point_track("a1", 0.0, 0.0));
+    tracks.push_back(point_track("a2", 0.1, 0.0));
+    tracks.push_back(point_track("b1", 10.0, 10.0));
+    tracks.push_back(point_track("b2", 10.1, 10.0));
+    tracks[0].name = "Say \"Hi\" \\ now";
+    tracks[0].artists = "A, B";
+    music_taste::FeatureVector ghost;
+    ghost.id = "ghost-id";
+    ghost.has_features = false;
+    tracks.push_back(ghost);
+
+    music_taste::KMeansResult clusters = music_taste::run_kmeans(tracks, 2);
+    music_taste::PcaResult map = music_taste::project_to_2d(tracks);
+
+    const std::string path = "test_map.json";
+    music_taste::write_map_json(path, tracks, clusters, map);
+    const std::string json = read_file(path);
+
+    CHECK(!json.empty());
+    CHECK(json.find("\"track_count\": 5") != std::string::npos);
+    CHECK(json.find("\"mapped_count\": 4") != std::string::npos);
+    // Quotes and backslashes in the name arrive escaped.
+    CHECK(json.find("Say \\\"Hi\\\" \\\\ now") != std::string::npos);
+    // The ghost track is not part of the map.
+    CHECK(json.find("ghost-id") == std::string::npos);
+    // Two axes, two clusters, and a cluster id for every mapped track.
+    CHECK(json.find("\"explained\":") != std::string::npos);
+    CHECK(json.find("{\"id\": 0, \"size\": 2") != std::string::npos);
+    CHECK(json.find("{\"id\": 1, \"size\": 2") != std::string::npos);
+
+    // Mismatched inputs (results from a different track list) refuse
+    // to write instead of producing a broken file.
+    std::vector<music_taste::FeatureVector> other = {point_track("x", 1, 2)};
+    CHECK_THROWS(music_taste::write_map_json(path, other, clusters, map),
+                 std::runtime_error);
+
+    std::remove(path.c_str());
+}
+
 int main() {
     test_loader();
     test_normalizer();
     test_distance();
     test_kmeans();
     test_pca();
+    test_json_writer();
 
     std::cout << checks_run << " checks, " << checks_failed << " failed\n";
     return checks_failed == 0 ? 0 : 1;
