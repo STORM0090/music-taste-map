@@ -1,0 +1,24 @@
+# Secrets - never commit
+.env
+
+# Python
+__pycache__/
+*.pyc
+.venv/
+venv/
+
+# spotipy token cache
+.cache
+.cache-*
+
+# Generated data exports
+playlist_features.csv
+
+# C++ (CMake out-of-source build)
+cpp_core/build/
+*.o
+*.obj
+*.exe
+CMakeCache.txt
+CMakeFiles/
+cmake_install.cmake
