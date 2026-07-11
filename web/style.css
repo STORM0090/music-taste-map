@@ -26,6 +26,14 @@ h1 {
   margin-top: 4px;
 }
 
+#insight {
+  color: #b7bfdd;
+  font-style: italic;
+  margin-top: 10px;
+  max-width: 720px;
+  line-height: 1.45;
+}
+
 main {
   display: flex;
   gap: 20px;

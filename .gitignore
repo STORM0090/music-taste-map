@@ -15,6 +15,7 @@ venv/
 playlist_features.csv
 data/
 map.json
+names.json
 
 # C++ (CMake out-of-source build)
 cpp_core/build/
