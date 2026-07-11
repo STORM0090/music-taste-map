@@ -1,0 +1,30 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <title>Music Taste Map</title>
+  <link rel="stylesheet" href="style.css">
+</head>
+<body>
+  <header>
+    <h1>Music Taste Map</h1>
+    <p id="subtitle">Loading the sky…</p>
+  </header>
+
+  <main>
+    <!-- The sky: every track becomes one star inside this SVG -->
+    <svg id="map" viewBox="0 0 900 600"></svg>
+
+    <!-- Side panel: details of the hovered star + cluster legend -->
+    <aside id="panel">
+      <h2 id="panel-title">Hover a star</h2>
+      <p id="panel-artists"></p>
+      <p id="panel-cluster"></p>
+      <p id="panel-axes"></p>
+      <div id="legend"></div>
+    </aside>
+  </main>
+
+  <script src="map.js"></script>
+</body>
+</html>
