@@ -10,6 +10,7 @@ add_library(music_taste_lib STATIC
     src/normalizer.cpp
     src/distance.cpp
     src/kmeans.cpp
+    src/pca.cpp
 )
 target_include_directories(music_taste_lib PUBLIC include)
 

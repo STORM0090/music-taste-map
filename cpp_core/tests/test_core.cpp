@@ -13,6 +13,7 @@
 #include "music_taste/distance.hpp"
 #include "music_taste/kmeans.hpp"
 #include "music_taste/normalizer.hpp"
+#include "music_taste/pca.hpp"
 
 int checks_run = 0;
 int checks_failed = 0;
@@ -250,11 +251,65 @@ void test_kmeans() {
     CHECK_THROWS(music_taste::run_kmeans(tracks, 7), std::runtime_error);
 }
 
+void test_pca() {
+    // Nearly all variance sits along feature 0, a sliver along
+    // feature 1, none anywhere else.
+    const double xs[] = {-10.0, -5.0, 0.0, 5.0, 10.0};
+    const double ys[] = {0.1, -0.1, 0.0, 0.1, -0.1};
+    std::vector<music_taste::FeatureVector> tracks;
+    for (int i = 0; i < 5; ++i) {
+        tracks.push_back(point_track("p" + std::to_string(i), xs[i], ys[i]));
+    }
+    music_taste::FeatureVector ghost;
+    ghost.id = "ghost";
+    ghost.has_features = false;
+    tracks.push_back(ghost);
+
+    music_taste::PcaResult res = music_taste::project_to_2d(tracks);
+
+    CHECK(res.coords.size() == tracks.size());
+    CHECK(approx(res.coords[5][0], 0.0));  // ghost sits at the origin
+    CHECK(approx(res.coords[5][1], 0.0));
+
+    // The first axis must align with feature 0 (sign is arbitrary).
+    CHECK(std::fabs(res.axis1[0]) > 0.999);
+    CHECK(std::fabs(res.axis1[1]) < 0.05);
+
+    // Axes are unit length and orthogonal.
+    double d = 0.0, len1 = 0.0, len2 = 0.0;
+    for (std::size_t i = 0; i < music_taste::kFeatureCount; ++i) {
+        d += res.axis1[i] * res.axis2[i];
+        len1 += res.axis1[i] * res.axis1[i];
+        len2 += res.axis2[i] * res.axis2[i];
+    }
+    CHECK(std::fabs(d) < 1e-6);
+    CHECK(approx(len1, 1.0, 1e-6));
+    CHECK(approx(len2, 1.0, 1e-6));
+
+    // The x coordinates reproduce the spread along feature 0.
+    CHECK(approx(std::fabs(res.coords[0][0]), 10.0, 0.01));
+    CHECK(approx(std::fabs(res.coords[4][0]), 10.0, 0.01));
+
+    // The first axis dominates the variance.
+    CHECK(res.explained1 > 0.99);
+    CHECK(res.explained2 >= 0.0);
+    CHECK(res.explained1 >= res.explained2);
+
+    // Deterministic.
+    music_taste::PcaResult res2 = music_taste::project_to_2d(tracks);
+    CHECK(res2.coords == res.coords);
+
+    // No tracks with features -> error.
+    std::vector<music_taste::FeatureVector> empty;
+    CHECK_THROWS(music_taste::project_to_2d(empty), std::runtime_error);
+}
+
 int main() {
     test_loader();
     test_normalizer();
     test_distance();
     test_kmeans();
+    test_pca();
 
     std::cout << checks_run << " checks, " << checks_failed << " failed\n";
     return checks_failed == 0 ? 0 : 1;

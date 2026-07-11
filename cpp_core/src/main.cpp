@@ -10,6 +10,28 @@
 #include "music_taste/distance.hpp"
 #include "music_taste/kmeans.hpp"
 #include "music_taste/normalizer.hpp"
+#include "music_taste/pca.hpp"
+
+// Indices of the two entries with the largest absolute values - used
+// to describe what defines a cluster centroid or a map axis.
+std::pair<std::size_t, std::size_t> top_two_features(
+    const std::array<double, music_taste::kFeatureCount>& values) {
+    std::size_t f1 = 0, f2 = 0;
+    double a1 = -1.0, a2 = -1.0;
+    for (std::size_t f = 0; f < music_taste::kFeatureCount; ++f) {
+        const double a = std::fabs(values[f]);
+        if (a > a1) {
+            a2 = a1;
+            f2 = f1;
+            a1 = a;
+            f1 = f;
+        } else if (a > a2) {
+            a2 = a;
+            f2 = f;
+        }
+    }
+    return {f1, f2};
+}
 
 int main(int argc, char** argv) {
     if (argc < 2 || argc > 3) {
@@ -135,20 +157,7 @@ int main(int argc, char** argv) {
 
             // The two most pronounced centroid features (largest |z|)
             // describe what makes this cluster distinct.
-            std::size_t f1 = 0, f2 = 0;
-            double a1 = -1.0, a2 = -1.0;
-            for (std::size_t f = 0; f < music_taste::kFeatureCount; ++f) {
-                const double a = std::fabs(clusters.centroids[c][f]);
-                if (a > a1) {
-                    a2 = a1;
-                    f2 = f1;
-                    a1 = a;
-                    f1 = f;
-                } else if (a > a2) {
-                    a2 = a;
-                    f2 = f;
-                }
-            }
+            const auto [f1, f2] = top_two_features(clusters.centroids[c]);
 
             std::cout << "\n  Cluster " << c << " - " << members.size()
                        << " tracks, defined by " << music_taste::kFeatureNames[f1]
@@ -159,6 +168,34 @@ int main(int argc, char** argv) {
                 const auto& t = tracks[members[m].second];
                 std::cout << "    " << t.name << " -- " << t.artists << '\n';
             }
+        }
+
+        // --- 2D star-map projection --------------------------------------
+        music_taste::PcaResult map = music_taste::project_to_2d(tracks);
+        const auto [x1, x2] = top_two_features(map.axis1);
+        const auto [y1, y2] = top_two_features(map.axis2);
+        std::cout << "\n2D star-map projection (PCA):\n";
+        std::cout << std::setprecision(1);
+        std::cout << "  X axis: " << map.explained1 * 100.0
+                   << "% of variance, driven by "
+                   << music_taste::kFeatureNames[x1] << " and "
+                   << music_taste::kFeatureNames[x2] << '\n';
+        std::cout << "  Y axis: " << map.explained2 * 100.0
+                   << "% of variance, driven by "
+                   << music_taste::kFeatureNames[y1] << " and "
+                   << music_taste::kFeatureNames[y2] << '\n';
+        std::cout << std::setprecision(3);
+
+        std::cout << "  Sample coordinates:\n";
+        int shown = 0;
+        for (std::size_t i = 0; i < tracks.size() && shown < 3; ++i) {
+            if (!tracks[i].has_features) {
+                continue;
+            }
+            std::cout << "    " << tracks[i].name << "  ("
+                       << map.coords[i][0] << ", " << map.coords[i][1]
+                       << ")\n";
+            ++shown;
         }
     } catch (const std::exception& e) {
         std::cerr << "Error: " << e.what() << '\n';
