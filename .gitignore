@@ -11,8 +11,9 @@ venv/
 .cache
 .cache-*
 
-# Generated data exports
+# Generated data exports and offline datasets
 playlist_features.csv
+data/
 
 # C++ (CMake out-of-source build)
 cpp_core/build/
