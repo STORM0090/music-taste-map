@@ -1,6 +1,7 @@
 // Minimal dependency-free test runner: every CHECK reports a line on
 // failure, main() prints a summary and returns non-zero if anything
 // failed (so ctest can pick it up).
+#include <array>
 #include <cmath>
 #include <cstdio>
 #include <fstream>
@@ -9,6 +10,7 @@
 #include <vector>
 
 #include "music_taste/csv_loader.hpp"
+#include "music_taste/distance.hpp"
 #include "music_taste/normalizer.hpp"
 
 int checks_run = 0;
@@ -152,9 +154,44 @@ void test_normalizer() {
     CHECK_THROWS(norm3.transform(tracks), std::runtime_error);
 }
 
+void test_distance() {
+    std::array<double, music_taste::kFeatureCount> a{};
+    std::array<double, music_taste::kFeatureCount> b{};
+
+    // Identical vectors are at distance 0.
+    a.fill(1.0);
+    b.fill(1.0);
+    CHECK(approx(music_taste::euclidean_distance(a, b), 0.0));
+
+    // Classic 3-4-5 triangle in the first two dimensions.
+    a.fill(0.0);
+    b.fill(0.0);
+    b[0] = 3.0;
+    b[1] = 4.0;
+    CHECK(approx(music_taste::euclidean_distance(a, b), 5.0));
+
+    // Cosine: same direction -> 1, orthogonal -> 0, opposite -> -1.
+    a.fill(0.0);
+    b.fill(0.0);
+    a[0] = 1.0;
+    b[0] = 2.0;
+    CHECK(approx(music_taste::cosine_similarity(a, b), 1.0));
+    b[0] = 0.0;
+    b[1] = 1.0;
+    CHECK(approx(music_taste::cosine_similarity(a, b), 0.0));
+    b[0] = -1.0;
+    b[1] = 0.0;
+    CHECK(approx(music_taste::cosine_similarity(a, b), -1.0));
+
+    // Zero vector has no direction: similarity defined as 0.
+    b.fill(0.0);
+    CHECK(approx(music_taste::cosine_similarity(a, b), 0.0));
+}
+
 int main() {
     test_loader();
     test_normalizer();
+    test_distance();
 
     std::cout << checks_run << " checks, " << checks_failed << " failed\n";
     return checks_failed == 0 ? 0 : 1;
