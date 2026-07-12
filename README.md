@@ -14,17 +14,9 @@ computed mathematically.
 
 ## Pipeline
 
-```
-Spotify Web API ──► SQLite (music.db) ──► CSV export
-                        ▲                     │
-   Kaggle dataset ──────┘ (offline           ▼
-   (audio features)        feature      C++ core: z-score → k-means++
-                           matching)         → PCA → map.json
-                                              │
-                    Gemini API ──► names.json ▼
-                    (constellation      static web page
-                     naming)            (vanilla JS + SVG)
-```
+Data flows from Spotify and an offline dataset into SQLite, gets
+exported to CSV, processed by the C++ core into `map.json`, and named
+by Gemini before landing on the static page below.
 
 | Stage | Tool | What happens |
 |---|---|---|
@@ -76,8 +68,8 @@ argument).
 - **PCA by power iteration:** the 2D star-map projection is computed
   from the covariance matrix with power iteration + deflation — ~150
   lines instead of a linear-algebra dependency, and the axes stay
-  interpretable (for my library: energy↔acousticness vs
-  tempo↔danceability).
+  interpretable (for my library: energy vs acousticness on one axis,
+  tempo vs danceability on the other).
 - **Data honesty:** one track renders with a garbled artist name.
   That's not a pipeline bug — Spotify's own catalog serves those bytes
   (verified against the API directly; Cyrillic titles in the same file
@@ -95,4 +87,4 @@ argument).
 
 ## License
 
-MIT
+Copyright (c) 2026 Yehor Vorobiov
