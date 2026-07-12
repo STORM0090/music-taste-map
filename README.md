@@ -5,8 +5,7 @@ every track becomes a star, similar tracks cluster into constellations,
 and an LLM gives each constellation an evocative name grounded in its
 actual audio profile.
 
-<!-- Add a screenshot: save one as docs/star-map.png and uncomment -->
-<!-- ![Star map](docs/star-map.png) -->
+![Star map](docs/star-map.png)
 
 All the analytics — normalization, clustering, dimensionality
 reduction — are implemented from scratch in C++. The AI does not
