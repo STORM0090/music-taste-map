@@ -61,6 +61,11 @@ python -m http.server 8123 --directory web   # open http://localhost:8123
 
 Tests: `cpp_core/build/music_taste_tests` (or `ctest` in the build dir).
 
+On Windows, two shortcuts wrap the above: `view_map.bat` serves the
+already-generated map and opens the browser; `update_map.bat` re-runs
+the whole pipeline for the playlist from `.env` (or pass one as an
+argument).
+
 ## Engineering notes
 
 - **Why normalize:** features live in wildly different ranges (tempo

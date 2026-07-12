@@ -235,10 +235,21 @@ def main():
     if args[0] == "stats":
         print_stats(con)
     else:
-        if len(args) < 2:
-            sys.exit("export needs a playlist id or URL")
+        if len(args) >= 2:
+            spotify_id = canonical_playlist_id(args[1])
+        else:
+            # No playlist given: default to the most recently fetched one.
+            row = con.execute(
+                "SELECT spotify_id, name FROM playlists "
+                "ORDER BY fetched_at DESC LIMIT 1"
+            ).fetchone()
+            if row is None:
+                sys.exit("The database has no playlists yet - run "
+                         "get_playlist_features.py first")
+            spotify_id = row["spotify_id"]
+            print(f'Exporting the latest playlist: {row["name"]}')
         out = args[2] if len(args) > 2 else "playlist_features.csv"
-        n = export_playlist_csv(con, canonical_playlist_id(args[1]), out)
+        n = export_playlist_csv(con, spotify_id, out)
         print(f"Exported {n} tracks to {out}")
 
 
