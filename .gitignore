@@ -16,6 +16,7 @@ playlist_features.csv
 data/
 map.json
 names.json
+music.db
 
 # C++ (CMake out-of-source build)
 cpp_core/build/
