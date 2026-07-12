@@ -1,17 +1,28 @@
-"""Fetch all tracks of a Spotify playlist and export them to CSV.
+"""Fetch all tracks of a Spotify playlist into the local database.
+
+Track metadata goes into SQLite (music.db); audio features are filled
+separately by match_features.py and survive re-fetches, so tracks the
+database already knows arrive with their features "for free". After
+saving, the playlist is exported to playlist_features.csv for the C++
+core.
 
 Usage:
   python get_playlist_features.py <playlist ID or URL>
   (or set PLAYLIST_ID in .env and run without arguments)
 """
 
-import csv
 import os
 import sys
 
 import spotipy
 from dotenv import load_dotenv
 from spotipy.oauth2 import SpotifyOAuth
+
+import db
+
+# Windows consoles often default to a legacy code page that cannot
+# print non-Latin playlist or track names; force UTF-8 output.
+sys.stdout.reconfigure(encoding="utf-8")
 
 load_dotenv()
 
@@ -40,7 +51,10 @@ auth = SpotifyOAuth(
 )
 sp = spotipy.Spotify(auth_manager=auth)
 
-print("Fetching playlist tracks...")
+# Canonical id and display name of the playlist itself.
+meta = sp.playlist(playlist, fields="id,name")
+
+print(f'Fetching "{meta["name"]}"...')
 
 tracks = []
 page = sp.playlist_items(playlist)
@@ -60,8 +74,8 @@ while page:
                 "album": track.get("album", {}).get("name", ""),
                 "release_date": track.get("album", {}).get("release_date", ""),
                 # popularity is absent in the newer response format
-                "popularity": track.get("popularity", ""),
-                "duration_ms": track.get("duration_ms", ""),
+                "popularity": track.get("popularity") or None,
+                "duration_ms": track.get("duration_ms") or None,
             }
         )
     page = sp.next(page) if page["next"] else None
@@ -70,58 +84,22 @@ print(f"Tracks found: {len(tracks)}")
 if not tracks:
     sys.exit("The playlist has no tracks - nothing to save.")
 
-print("Fetching audio features...")
+con = db.connect()
+db.upsert_tracks(con, tracks)
+db.save_playlist(con, meta["id"], meta["name"], [t["id"] for t in tracks])
 
-features_by_id = {}
-try:
-    # /audio-features accepts at most 100 IDs per request
-    for start in range(0, len(tracks), 100):
-        chunk_ids = [t["id"] for t in tracks[start : start + 100]]
-        for f in sp.audio_features(chunk_ids):
-            if f is not None:
-                features_by_id[f["id"]] = f
-except spotipy.SpotifyException as e:
-    if e.http_status == 403:
-        # Spotify closed /audio-features for apps created after
-        # Nov 27, 2024 - nothing to be done client-side.
-        print(
-            "\nWARNING: Spotify returned 403 for audio features.\n"
-            "Saving the CSV with track metadata only.\n"
-        )
-    else:
-        raise
+with_features = con.execute(
+    """
+    SELECT COUNT(*) AS n
+    FROM tracks t
+    JOIN playlist_tracks pt ON pt.track_id = t.id
+    JOIN playlists p ON p.id = pt.playlist_id
+    WHERE p.spotify_id = ? AND t.danceability IS NOT NULL
+    """,
+    (meta["id"],),
+).fetchone()["n"]
 
-# loudness is intentionally absent: the offline feature datasets used
-# to fill these columns do not provide it (see match_features.py).
-FEATURE_COLUMNS = [
-    "danceability",
-    "energy",
-    "valence",
-    "tempo",
-    "acousticness",
-    "instrumentalness",
-    "speechiness",
-    "liveness",
-    "key",
-    "mode",
-    "time_signature",
-]
-
-BASE_COLUMNS = ["name", "artists", "album", "release_date", "popularity", "duration_ms", "id"]
-
-OUTPUT_FILE = "playlist_features.csv"
-
-# utf-8-sig so Excel handles non-ASCII characters correctly
-with open(OUTPUT_FILE, "w", newline="", encoding="utf-8-sig") as f:
-    writer = csv.DictWriter(f, fieldnames=BASE_COLUMNS + FEATURE_COLUMNS)
-    writer.writeheader()
-    for t in tracks:
-        row = dict(t)
-        feats = features_by_id.get(t["id"], {})
-        for col in FEATURE_COLUMNS:
-            row[col] = feats.get(col, "")
-        writer.writerow(row)
-
-print(f"Done! Saved {len(tracks)} tracks to {OUTPUT_FILE}")
-if features_by_id:
-    print(f"Audio features fetched for {len(features_by_id)} tracks.")
+exported = db.export_playlist_csv(con, meta["id"], "playlist_features.csv")
+print(f"Saved to music.db; exported {exported} tracks to playlist_features.csv")
+print(f"{with_features} already have features; run match_features.py "
+      f"to fill in the rest")

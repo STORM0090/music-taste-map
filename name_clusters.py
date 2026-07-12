@@ -21,7 +21,6 @@ Usage:
 """
 
 import ast
-import csv
 import json
 import os
 import sys
@@ -33,7 +32,6 @@ from dotenv import load_dotenv
 sys.stdout.reconfigure(encoding="utf-8")
 
 MAP_PATH = "web/map.json"
-GENRES_PATH = "data/genres.csv"
 OUT_PATH = "web/names.json"
 
 # The response must follow this exact shape - structured output mode
@@ -68,20 +66,28 @@ RESPONSE_SCHEMA = {
 }
 
 
-def load_genres(path):
-    """id -> list of genre strings (the CSV stores them as "['a', 'b']")."""
+def load_genres():
+    """id -> list of genre strings, from the database.
+
+    The dataset stores genres as a Python-list-looking string
+    ("['pop', 'rock']"); ast.literal_eval parses exactly that, safely.
+    Genres are a nice-to-have: any failure just means less context in
+    the prompt.
+    """
     genres = {}
     try:
-        with open(path, encoding="utf-8") as f:
-            for row in csv.DictReader(f):
-                try:
-                    parsed = ast.literal_eval(row["genres"])
-                except (ValueError, SyntaxError):
-                    parsed = [row["genres"]]
-                if isinstance(parsed, list):
-                    genres[row["id"]] = [str(g) for g in parsed]
-    except FileNotFoundError:
-        pass  # genres are a nice-to-have, not a requirement
+        import db
+        con = db.connect()
+        for row in con.execute(
+                "SELECT id, genres FROM tracks WHERE genres IS NOT NULL"):
+            try:
+                parsed = ast.literal_eval(row["genres"])
+            except (ValueError, SyntaxError):
+                parsed = [row["genres"]]
+            if isinstance(parsed, list):
+                genres[row["id"]] = [str(g) for g in parsed]
+    except Exception:
+        pass
     return genres
 
 
@@ -141,7 +147,7 @@ def main():
 
     with open(MAP_PATH, encoding="utf-8") as f:
         data = json.load(f)
-    genres_by_id = load_genres(GENRES_PATH)
+    genres_by_id = load_genres()
     prompt = build_prompt(data, genres_by_id)
 
     if "--dry-run" in sys.argv:
