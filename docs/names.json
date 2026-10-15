@@ -1,0 +1,30 @@
+{
+  "overall": "This library presents a vibrant, cross-cultural sonic journey with a strong dual focus on rhythm and emotion. Anchored heavily by Latin pop, reggaeton, and hip-hop, the collection effortlessly shifts between high-energy club anthems and traditional regional storytelling. Beneath the upbeat party tracks lies a deeply contemplative streak characterized by gentle acoustic ballads and minor-key intensity.",
+  "clusters": [
+    {
+      "id": 0,
+      "name": "Midnight Cypher",
+      "description": "Dominated by sharp lyricism and bouncy cadences, this cluster spotlights vocal-heavy hip-hop and playful urban flows."
+    },
+    {
+      "id": 1,
+      "name": "Desert Waltz",
+      "description": "Defined by regional Mexican storytelling and rare triple-meter rhythms, these tracks evoke a nostalgic and dust-swept charm."
+    },
+    {
+      "id": 2,
+      "name": "Pale Melancholy",
+      "description": "Stripped down and profoundly quiet, this acoustic sanctuary leans into tender sadness, soft vocals, and gentle introspection."
+    },
+    {
+      "id": 3,
+      "name": "Sunlit Groove",
+      "description": "Radiating warmth and optimism, this expansive group celebrates melodic pop, rock, and breezy Latin dance rhythms."
+    },
+    {
+      "id": 4,
+      "name": "Neon Surge",
+      "description": "Fueled by high-voltage electronics, live-room grit, and dark minor keys, this cluster thrives on raw, kinetic club and rock power."
+    }
+  ]
+}
