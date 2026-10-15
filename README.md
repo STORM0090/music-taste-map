@@ -1,90 +1,117 @@
 # Music Taste Map
 
-Turns a Spotify playlist into a night-sky map of your music taste:
-every track becomes a star, similar tracks cluster into constellations,
-and an LLM gives each constellation an evocative name grounded in its
-actual audio profile.
+Turns a Spotify playlist into a star map: tracks are stars, clusters are constellations, and the clustering math is written from scratch in C++.
+
+[![CI](https://github.com/STORM0090/music-taste-map/actions/workflows/ci.yml/badge.svg)](https://github.com/STORM0090/music-taste-map/actions/workflows/ci.yml)
+![License: MIT](https://img.shields.io/badge/license-MIT-blue)
+![C++17](https://img.shields.io/badge/C%2B%2B-17-blue)
+
+**Live demo:** https://storm0090.github.io/music-taste-map/ (a random sample of a public dataset, see [docs/DEMO.md](docs/DEMO.md))
 
 ![Star map](docs/star-map.png)
 
-All the analytics — normalization, clustering, dimensionality
-reduction — are implemented from scratch in C++. The AI does not
-analyze anything: it only puts words on structure that is already
-computed mathematically.
+## What it does
 
-## Pipeline
+1. Fetches a Spotify playlist and stores the tracks in SQLite.
+2. Fills the audio features (energy, valence, tempo, danceability and so on) from an offline dataset.
+3. A C++ core normalizes the features, clusters the tracks with k-means++ and projects them to 2D with PCA.
+4. A static page draws the result: one star per track, one color per cluster.
+5. Optionally, an LLM gives each cluster a name and a one-line description.
 
-Data flows from Spotify and an offline dataset into SQLite, gets
-exported to CSV, processed by the C++ core into `map.json`, and named
-by Gemini before landing on the static page below.
+## Highlights
 
-| Stage | Tool | What happens |
-|---|---|---|
-| Fetch | `get_playlist_features.py` | Playlist tracks → SQLite, CSV export for the core |
-| Enrich | `match_features.py` | Fills audio features from an offline dataset (Spotify closed its `/audio-features` endpoint for new apps in Nov 2024): exact track-id match first, then normalized name+artist fallback. Incremental — tracks matched once are reused for every future playlist |
-| Analyze | `cpp_core` | Hand-written C++17: RFC 4180 CSV parser, z-score normalization, k-means with k-means++ seeding, PCA via power iteration, JSON export. Zero third-party dependencies, 68 unit tests |
-| Name | `name_clusters.py` | Profiles each cluster (distinctive features, genres, typical tracks) and asks Gemini for names via structured outputs — guaranteed-valid JSON, one tiny free-tier request |
-| View | `web/` | Static page, no frameworks: SVG stars colored by cluster, hover details, AI summary |
+- **Hand-written analytics, LLM only for names.** Z-score normalization, k-means++ and PCA (power iteration with deflation) are my own C++ code, written to understand the math and to be able to test every step. The core has no third-party dependencies, and a run takes about 50 ms for 250 tracks, so a library would not have bought speed. The LLM never decides which tracks belong together. It gets each cluster's profile (standout features, top genres, typical tracks) and returns a name and a sentence as schema-constrained JSON. The page works without names and falls back to "Cluster N".
+- **Normalize before measuring distance.** Tempo is in beats per minute while most other features are between 0 and 1, so unscaled distances would be dominated by tempo. Features with zero variance are mapped to 0 instead of dividing by zero.
+- **Seeded and tested.** k-means++ and PCA use a fixed RNG seed, so a run is repeatable and the algorithms can be unit tested (two runs must match).
+- **Features from an offline dataset.** Spotify restricted the Audio Features endpoint for new apps from 27 Nov 2024, and my app received HTTP 403 from it. Tracks are matched to a Kaggle dataset by Spotify id first, then by normalized title and artist. Non-Latin titles normalize to an empty string, so they match by id only (an early version collided them all on one row).
+- **SQLite as the cache.** Tracks are stored once and linked to playlists through a junction table. A re-fetch refreshes metadata but keeps matched features, and only tracks without features are matched again. I checked this with two overlapping synthetic playlists.
 
-## Running it
+## Quick start
 
-Prerequisites: Python 3.10+, CMake + a C++17 compiler, a
-[Spotify app](https://developer.spotify.com/dashboard) (add
-`http://127.0.0.1:8888/callback` to its Redirect URIs), a free
-[Gemini API key](https://aistudio.google.com/apikey), and an offline
-audio-features dataset (any Kaggle Spotify dataset with `track_id` and
-feature columns) unpacked to `data/tracks.csv`.
+Look at the demo locally (no keys needed):
+
+```sh
+python -m http.server 8000 --directory docs
+```
+
+Open http://localhost:8000.
+
+Build and test the C++ core (CMake 3.16 or newer, a C++17 compiler):
+
+```sh
+cmake -S cpp_core -B cpp_core/build
+cmake --build cpp_core/build
+cd cpp_core/build && ctest --output-on-failure
+```
+
+With a Visual Studio generator add `-C Debug` to `ctest`; the binaries are then in `cpp_core/build/Debug/`. Run the core on the bundled sample:
+
+```sh
+cpp_core/build/music_taste_core cpp_core/data/sample_tracks.csv 2 sample_map.json
+```
+
+Full pipeline for your own playlist. You need a Spotify app with the redirect URI `http://127.0.0.1:8888/callback`, the [Kaggle dataset](https://www.kaggle.com/datasets/anantsinghal786/almost-million-songs-dataset-2025-16-features) unpacked to `data/tracks.csv`, and, for names only, a Gemini API key from Google AI Studio.
 
 ```sh
 pip install -r requirements.txt
-cp .env.example .env          # fill in your keys
-
-cmake -S cpp_core -B cpp_core/build && cmake --build cpp_core/build
-
+cp .env.example .env            # fill in the keys
 python get_playlist_features.py <playlist URL>
 python match_features.py
-python db.py export <playlist URL>
+python db.py export             # exports the latest fetched playlist
 cpp_core/build/music_taste_core playlist_features.csv 5 web/map.json
-python name_clusters.py
-
-python -m http.server 8123 --directory web   # open http://localhost:8123
+python name_clusters.py         # optional
+python -m http.server 8123 --directory web
 ```
 
-Tests: `cpp_core/build/music_taste_tests` (or `ctest` in the build dir).
+On Windows, `update_map.bat` runs the pipeline for the playlist in `.env` and `view_map.bat` serves the finished map.
 
-On Windows, two shortcuts wrap the above: `view_map.bat` serves the
-already-generated map and opens the browser; `update_map.bat` re-runs
-the whole pipeline for the playlist from `.env` (or pass one as an
-argument).
+Tested on Windows 11 with Python 3.14.2, CMake 4.4.0, GCC 16.1.0 (MSYS2) and the Visual Studio 18 generator, spotipy 2.26.0, python-dotenv 1.2.2 and google-genai 2.11.0.
 
-## Engineering notes
+## How it works
 
-- **Why normalize:** features live in wildly different ranges (tempo
-  50–200 vs danceability 0–1); without z-scores any distance metric is
-  dominated by tempo alone.
-- **k-means++ and determinism:** spread-out seeding avoids poor local
-  optima; a fixed RNG seed makes every run reproducible bit-for-bit,
-  which is also what makes the algorithms unit-testable.
-- **PCA by power iteration:** the 2D star-map projection is computed
-  from the covariance matrix with power iteration + deflation — ~150
-  lines instead of a linear-algebra dependency, and the axes stay
-  interpretable (for my library: energy vs acousticness on one axis,
-  tempo vs danceability on the other).
-- **Data honesty:** one track renders with a garbled artist name.
-  That's not a pipeline bug — Spotify's own catalog serves those bytes
-  (verified against the API directly; Cyrillic titles in the same file
-  survive intact). The pipeline faithfully preserves its source.
-- **The lone-star cluster:** k-means must assign every point somewhere,
-  so a single Japanese instrumental outlier gets a cluster of its own —
-  a nice argument for trying DBSCAN next.
+```mermaid
+flowchart LR
+    spotify["Spotify API"] --> db[("SQLite music.db")]
+    kaggle["Kaggle dataset"] --> match["match_features.py"]
+    match --> db
+    db --> csv["CSV export"]
+    csv --> core["C++ core: z-score, k-means++, PCA"]
+    core --> map["map.json"]
+    map --> naming["name_clusters.py with Gemini"]
+    naming --> names["names.json"]
+    map --> page["Static page: HTML, JS, SVG"]
+    names --> page
+```
+
+| Part | Where | Role |
+|---|---|---|
+| Fetch and storage | `get_playlist_features.py`, `db.py` | Spotify API (authorization code flow) to SQLite and to the CSV the core reads |
+| Feature matching | `match_features.py` | Fills missing audio features from the offline dataset |
+| Analysis | `cpp_core/` | CSV loader, normalizer, distances, k-means++, PCA, JSON writer |
+| Naming | `name_clusters.py` | One Gemini request per run, structured JSON output |
+| Frontend | `web/`, `docs/` | `fetch` plus SVG, no framework. `docs/` is the GitHub Pages copy with demo data |
+
+## Tests
+
+`cpp_core/tests/test_core.cpp` has 68 checks in 6 groups: CSV loader, normalizer, distance metrics, k-means, PCA and JSON writer. It uses a small custom runner and is registered as a single ctest target, so ctest reports 1 test and the binary prints `68 checks, 0 failed`. The checks cover quoted fields, BOM and CRLF handling, malformed input errors, the z-score math, the zero-variance guard, cluster separation, PCA axis orthogonality and JSON escaping. The Python scripts and the frontend have no automated tests.
+
+## Limitations
+
+- **Coverage.** The offline dataset does not contain every track. On my own playlist 230 of 343 tracks (67%) matched, and the rest have no star.
+- **11 features.** The dataset has no loudness, so it is not used.
+- **2D is lossy.** Clustering runs on the 11 normalized features, not on the map. The two PCA axes explain 24.1% and 13.2% of the variance on the demo data, so distances on the map are approximate.
+- **k-means.** k is chosen up front (the CLI prints inertia for k=2 to 8) and every track gets a cluster, so an outlier can form a tiny cluster. On my playlist one track did.
+- **Repeatability.** A fixed seed gives the same result on the same build. The standard library's random distributions are implementation-defined, so other compilers may cluster differently (not tested).
+- **LLM text.** Names and descriptions change between runs. They are labels, not analysis.
+- **Platforms.** Developed and run on Windows. CI builds and tests the core on Ubuntu.
+- **Two frontend copies.** `docs/` duplicates `web/`, so changes have to be copied by hand.
 
 ## Roadmap
 
-- DBSCAN as a second clustering backend (outliers become "unnamed stars")
-- librosa fallback for tracks the offline dataset misses
-- Compare taste maps of different people (schema already supports
-  multiple playlists)
+- DBSCAN as a second clustering option, so outliers stay unlabeled.
+- A librosa fallback for tracks missing from the offline dataset.
+- Comparing the maps of several playlists (the schema already allows it).
 
 ## License
 
-Copyright (c) 2026 Yehor Vorobiov
+MIT, see [LICENSE](LICENSE).
