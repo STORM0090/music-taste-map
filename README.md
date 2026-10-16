@@ -112,6 +112,4 @@ flowchart LR
 - A librosa fallback for tracks missing from the offline dataset.
 - Comparing the maps of several playlists (the schema already allows it).
 
-## License
-
-MIT, see [LICENSE](LICENSE).
+Yehor Vorobiov
